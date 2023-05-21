@@ -27,36 +27,12 @@ class RecvThread(QThread):
                 print('연결이 종료되었습니다.@RecvThread')
                 break
 
-
-class SendThread(QThread):
-
-    def __init__(self):
-        super().__init__()
-        self.sock = None
-        self.msg = None
-
-    def set_sock(self, sock):
-        self.sock = sock
-
-    def push_message(self, msg):
-        self.msg = msg
-
-    @pyqtSlot()
-    def run(self) -> None:
-        while True:
-            time.sleep(0.01)
-            if self.msg is not None:
-                self.sock.send(self.msg.encode('utf-8'))
-                self.msg = None
-
-
 class ServerThread(QThread):
 
-    def __init__(self, sock, recv_thread, send_thread):
+    def __init__(self, sock, recv_thread):
         super().__init__()
         self.server_sock = sock
         self.recv_thread = recv_thread
-        self.send_thread = send_thread
 
     @pyqtSlot()
     def run(self) -> None:
@@ -67,8 +43,11 @@ class ServerThread(QThread):
 
             self.recv_thread.set_sock(conn_sock)
             self.recv_thread.start()
-            self.send_thread.set_sock(conn_sock)
-            self.send_thread.start()
+
+            self.sock = conn_sock
+
+    def send(self, msg):
+        self.sock.send(msg.encode('utf-8'))
 
 
 class MainWindow(QMainWindow):
@@ -112,7 +91,7 @@ class MainWindow(QMainWindow):
         if msg == '':
             return
 
-        self.send_thread.push_message(msg)
+        self.svr_thread.send(msg)
         self.le_input.setText('')
 
     def recv_msg(self, msg):
@@ -124,10 +103,10 @@ class MainWindow(QMainWindow):
         self.server_sock.bind(('', self.port))
         self.server_sock.listen()
 
-        self.send_thread = SendThread()
         self.recv_thread = RecvThread()
         self.recv_thread.recv_signal.connect(self.recv_msg)
-        self.svr_thread = ServerThread(self.server_sock, self.recv_thread, self.send_thread)
+
+        self.svr_thread = ServerThread(self.server_sock, self.recv_thread)
         self.svr_thread.start()
 
 
